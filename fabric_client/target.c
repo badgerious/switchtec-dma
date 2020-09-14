@@ -27,7 +27,7 @@ static unsigned int peer_hfid;
 module_param(peer_hfid, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(peer_hfid, "Peer host port HFID(server)");
 
-struct fabric_dma_target {
+static struct fabric_dma_target {
 	struct scratchpad *spd;
 	unsigned long long *data;
 	struct tasklet_struct data_process_task;
@@ -53,10 +53,10 @@ static void target_data_process_task(unsigned long data)
 	printk("Memory verification succeeded.\n");
 }
 
-struct dma_device *dma_dev = NULL;
+static struct dma_device *dma_dev = NULL;
 
-int spd_cookie = 0;
-int data_cookie = 0;
+static int spd_cookie = 0;
+static int data_cookie = 0;
 static int rhi_notify(struct notifier_block *self,
 		      unsigned long cookie, void *dev)
 {
