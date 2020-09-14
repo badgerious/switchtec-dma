@@ -1033,9 +1033,9 @@ static int switchtec_dma_alloc_desc(struct switchtec_dma_chan *swdma_chan)
 	writel(lower_32_bits(swdma_chan->dma_addr_cq), &chan_fw->cq_base_lo);
 	writel(upper_32_bits(swdma_chan->dma_addr_cq), &chan_fw->cq_base_hi);
 
-	writel(cpu_to_le16(SWITCHTEC_DMA_SQ_SIZE),
+	writew((__force u16)cpu_to_le16(SWITCHTEC_DMA_SQ_SIZE),
 	       &swdma_chan->mmio_chan_fw->sq_size);
-	writel(cpu_to_le16(SWITCHTEC_DMA_CQ_SIZE),
+	writel((__force u16)cpu_to_le16(SWITCHTEC_DMA_CQ_SIZE),
 	       &swdma_chan->mmio_chan_fw->cq_size);
 
 	return 0;
@@ -1263,7 +1263,7 @@ static int switchtec_dma_chans_release(struct switchtec_dma_dev *swdma_dev)
 
 static int switchtec_dma_get_chan_cnt(struct switchtec_dma_dev *swdma_dev)
 {
-	return le32_to_cpu(readl(&swdma_dev->mmio_dmac_cap->chan_cnt));
+	return le32_to_cpu((__force __le32)readl(&swdma_dev->mmio_dmac_cap->chan_cnt));
 }
 
 static int switchtec_dma_chans_enumerate(struct switchtec_dma_dev *swdma_dev,
@@ -1620,9 +1620,9 @@ static ssize_t se_count_show(struct dma_chan *chan, char *page)
 		return -ENODEV;
 	}
 
-	count = le32_to_cpu(readl(&chan_fw->perf_fetched_se_cnt_hi));
+	count = le32_to_cpu((__force __le32)readl(&chan_fw->perf_fetched_se_cnt_hi));
 	count <<= 32;
-	count |= le32_to_cpu(readl(&chan_fw->perf_fetched_se_cnt_lo));
+	count |= le32_to_cpu((__force __le32)readl(&chan_fw->perf_fetched_se_cnt_lo));
 
 	rcu_read_unlock();
 	return sprintf(page, "0x%llx\n", count);
@@ -1636,9 +1636,9 @@ static ssize_t byte_count_show(struct dma_chan *chan, char *page)
 	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u64 count = 0;
 
-	count = le32_to_cpu(readl(&chan_fw->perf_byte_cnt_hi));
+	count = le32_to_cpu((__force __le32)readl(&chan_fw->perf_byte_cnt_hi));
 	count <<= 32;
-	count |= le32_to_cpu(readl(&chan_fw->perf_byte_cnt_lo));
+	count |= le32_to_cpu((__force __le32)readl(&chan_fw->perf_byte_cnt_lo));
 
 	return sprintf(page, "0x%llx\n", count);
 }
@@ -1657,7 +1657,7 @@ static ssize_t se_pending_show(struct dma_chan *chan, char *page)
 		return -ENODEV;
 	}
 
-	count = le16_to_cpu(readl(&chan_fw->perf_se_pending));
+	count = le16_to_cpu((__force __le16)readl(&chan_fw->perf_se_pending));
 
 	rcu_read_unlock();
 	return sprintf(page, "0x%x\n", count);
@@ -1677,7 +1677,7 @@ static ssize_t se_buf_empty_show(struct dma_chan *chan, char *page)
 		return -ENODEV;
 	}
 
-	count = le16_to_cpu(readl(&chan_fw->perf_se_buf_empty));
+	count = le16_to_cpu((__force __le16)readw(&chan_fw->perf_se_buf_empty));
 
 	rcu_read_unlock();
 	return sprintf(page, "0x%x\n", count);
@@ -1697,7 +1697,7 @@ static ssize_t chan_idle_show(struct dma_chan *chan, char *page)
 		return -ENODEV;
 	}
 
-	ratio = le32_to_cpu(readl(&chan_fw->perf_chan_idle));
+	ratio = le32_to_cpu((__force __le32)readl(&chan_fw->perf_chan_idle));
 
 	rcu_read_unlock();
 	return sprintf(page, "0x%x\n", ratio);
@@ -1711,7 +1711,7 @@ static ssize_t latency_max_show(struct dma_chan *chan, char *page)
 	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 lat = 0;
 
-	lat = le32_to_cpu(readl(&chan_fw->perf_lat_max));
+	lat = le32_to_cpu((__force __le32)readl(&chan_fw->perf_lat_max));
 
 	return sprintf(page, "0x%x\n", lat);
 }
@@ -1730,7 +1730,7 @@ static ssize_t latency_min_show(struct dma_chan *chan, char *page)
 		return -ENODEV;
 	}
 
-	lat = le32_to_cpu(readl(&chan_fw->perf_lat_min));
+	lat = le32_to_cpu((__force __le32)readl(&chan_fw->perf_lat_min));
 
 	rcu_read_unlock();
 	return sprintf(page, "0x%x\n", lat);
@@ -1750,7 +1750,7 @@ static ssize_t latency_last_show(struct dma_chan *chan, char *page)
 		return -ENODEV;
 	}
 
-	lat = le32_to_cpu(readl(&chan_fw->perf_lat_last));
+	lat = le32_to_cpu((__force __le32)readl(&chan_fw->perf_lat_last));
 
 	rcu_read_unlock();
 	return sprintf(page, "0x%x\n", lat);
@@ -1770,7 +1770,7 @@ static ssize_t latency_selector_show(struct dma_chan *chan, char *page)
 		return -ENODEV;
 	}
 
-	lat = le32_to_cpu(readl(&chan_fw->perf_latency_selector));
+	lat = le32_to_cpu((__force __le32)readl(&chan_fw->perf_latency_selector));
 
 	strcat(page, "To select a latency type, write the type number (1 ~ 5) to this file.\n\n");
 
@@ -2358,7 +2358,7 @@ int switchtec_fabric_get_peer_buffers(struct dma_device *dma_dev, u16 peer_hfid,
 		struct buffer_entry *rsp_buf = &rsp->bufs[i];
 
 		buf->from_hfid = le16_to_cpu(rsp_buf->hfid);
-		buf->to_hfid = le16_to_cpu(swdma_dev->hfid);
+		buf->to_hfid = swdma_dev->hfid;
 		buf->index = rsp_buf->index;
 		buf->dma_addr = le32_to_cpu(rsp_buf->addr_hi);
 		buf->dma_addr <<= 32;
@@ -2454,7 +2454,7 @@ int switchtec_fabric_get_buffers(struct dma_device *dma_dev, int buf_num,
 			struct switchtec_buffer *buf = &bufs[i];
 			struct buffer_entry *rsp_buf = &rsp->bufs[j];
 
-			buf->from_hfid = le16_to_cpu(swdma_dev->hfid);
+			buf->from_hfid = swdma_dev->hfid;
 			buf->to_hfid = le16_to_cpu(rsp_buf->hfid);
 			buf->index = rsp_buf->index;
 			buf->dma_addr = le32_to_cpu(rsp_buf->addr_hi);
@@ -2610,9 +2610,9 @@ static int switchtec_dma_init_fabric(struct switchtec_dma_dev *swdma_dev)
 		goto err_exit;
 	}
 
-	writel(cpu_to_le32(lower_32_bits(swdma_dev->cmd_dma_addr)),
+	writel((__force u32)cpu_to_le32(lower_32_bits(swdma_dev->cmd_dma_addr)),
 	       &swdma_dev->mmio_fabric_ctrl->cmd_dma_addr_lo);
-	writel(cpu_to_le32(upper_32_bits(swdma_dev->cmd_dma_addr)),
+	writel((__force u32)cpu_to_le32(upper_32_bits(swdma_dev->cmd_dma_addr)),
 	       &swdma_dev->mmio_fabric_ctrl->cmd_dma_addr_hi);
 
 	mutex_init(&swdma_dev->cmd_mutex);
@@ -2646,18 +2646,18 @@ static int switchtec_dma_init_fabric(struct switchtec_dma_dev *swdma_dev)
 		goto err_exit;
 	}
 
-	writel(cpu_to_le32(lower_32_bits(swdma_dev->eq_dma_addr)),
+	writel((__force u32)cpu_to_le32(lower_32_bits(swdma_dev->eq_dma_addr)),
 	       &swdma_dev->mmio_fabric_ctrl->event_dma_addr_lo);
-	writel(cpu_to_le32(upper_32_bits(swdma_dev->eq_dma_addr)),
+	writel((__force u32)cpu_to_le32(upper_32_bits(swdma_dev->eq_dma_addr)),
 	       &swdma_dev->mmio_fabric_ctrl->event_dma_addr_hi);
 
 	ATOMIC_INIT_NOTIFIER_HEAD(&swdma_dev->event_notifier_list);
 	ATOMIC_INIT_NOTIFIER_HEAD(&swdma_dev->rhi_notifier_list);
 
-	writel(cpu_to_le32(0), &swdma_dev->mmio_fabric_ctrl->cmd_event_enable);
-	writel(cpu_to_le32(1), &swdma_dev->mmio_fabric_ctrl->cmd_event_enable);
-
-	return 0;
+	writel((__force u32)cpu_to_le32(0),
+	       &swdma_dev->mmio_fabric_ctrl->cmd_event_enable);
+	writel((__force u32)cpu_to_le32(1),
+	       &swdma_dev->mmio_fabric_ctrl->cmd_event_enable);
 
 err_exit:
 	if (swdma_dev->event_irq)
