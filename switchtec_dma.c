@@ -437,7 +437,7 @@ static int halt_channel(struct switchtec_dma_chan *swdma_chan)
 {
 	u8 ctrl;
 	u32 status;
-	struct chan_hw_regs *chan_hw = swdma_chan->mmio_chan_hw;
+	struct chan_hw_regs __iomem *chan_hw = swdma_chan->mmio_chan_hw;
 	int retry = HALT_RETRY;
 	struct pci_dev *pdev = swdma_chan->swdma_dev->pdev;
 
@@ -467,7 +467,7 @@ static int unhalt_channel(struct switchtec_dma_chan *swdma_chan)
 {
 	u8 ctrl;
 	u32 status;
-	struct chan_hw_regs *chan_hw = swdma_chan->mmio_chan_hw;
+	struct chan_hw_regs __iomem *chan_hw = swdma_chan->mmio_chan_hw;
 	int retry = HALT_RETRY;
 	struct pci_dev *pdev = swdma_chan->swdma_dev->pdev;
 
@@ -497,7 +497,7 @@ static int unhalt_channel(struct switchtec_dma_chan *swdma_chan)
 static int reset_channel(struct switchtec_dma_chan *swdma_chan)
 {
 	u8 ctrl;
-	struct chan_hw_regs *chan_hw = swdma_chan->mmio_chan_hw;
+	struct chan_hw_regs __iomem *chan_hw = swdma_chan->mmio_chan_hw;
 	struct pci_dev *pdev = swdma_chan->swdma_dev->pdev;
 
 	ctrl = SWITCHTEC_CHAN_CTRL_RESET;
@@ -518,7 +518,7 @@ static int reset_channel(struct switchtec_dma_chan *swdma_chan)
 static int enable_channel(struct switchtec_dma_chan *swdma_chan)
 {
 	u32 valid_en_se;
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	struct pci_dev *pdev = swdma_chan->swdma_dev->pdev;
 
 	valid_en_se = readl(&chan_fw->valid_en_se);
@@ -534,7 +534,7 @@ static int enable_channel(struct switchtec_dma_chan *swdma_chan)
 static int disable_channel(struct switchtec_dma_chan *swdma_chan)
 {
 	u32 valid_en_se;
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	struct pci_dev *pdev = swdma_chan->swdma_dev->pdev;
 
 	valid_en_se = readl(&chan_fw->valid_en_se);
@@ -727,7 +727,7 @@ static void switchtec_dma_chan_status_task(unsigned long data)
 	struct dma_device *dma_dev = &swdma_dev->dma_dev;
 	struct dma_chan *chan;
 	struct switchtec_dma_chan *swdma_chan;
-	struct chan_hw_regs *chan_hw;
+	struct chan_hw_regs __iomem *chan_hw;
 	struct device *chan_dev;
 	u32 chan_status;
 	int bit;
@@ -983,7 +983,7 @@ static void switchtec_dma_free_desc(struct switchtec_dma_chan *swdma_chan)
 static int switchtec_dma_alloc_desc(struct switchtec_dma_chan *swdma_chan)
 {
 	struct switchtec_dma_dev *swdma_dev = swdma_chan->swdma_dev;
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	size_t size;
 	struct switchtec_dma_desc *desc;
 	int i;
@@ -1136,8 +1136,8 @@ static int switchtec_dma_chan_init(struct switchtec_dma_dev *swdma_dev, int i)
 	struct device *dev = &swdma_dev->pdev->dev;
 	struct dma_chan *chan;
 	struct switchtec_dma_chan *swdma_chan;
-	struct chan_fw_regs *chan_fw;
-	struct chan_hw_regs *chan_hw;
+	struct chan_fw_regs __iomem *chan_fw;
+	struct chan_hw_regs __iomem *chan_hw;
 	u32 perf_cfg = 0;
 	u32 valid_en_se;
 	u32 thresh;
@@ -1154,10 +1154,12 @@ static int switchtec_dma_chan_init(struct switchtec_dma_dev *swdma_dev, int i)
 	swdma_chan->index = i;
 
 	offset =  i * SWITCHTEC_DMA_CHAN_FW_REGS_SIZE;
-	chan_fw = (struct chan_fw_regs *)(swdma_dev->mmio_chan_fw_all + offset);
+	chan_fw = (struct chan_fw_regs __iomem *)(swdma_dev->mmio_chan_fw_all
+			+ offset);
 
 	offset =  i * SWITCHTEC_DMA_CHAN_HW_REGS_SIZE;
-	chan_hw = (struct chan_hw_regs *)(swdma_dev->mmio_chan_hw_all + offset);
+	chan_hw = (struct chan_hw_regs __iomem *)(swdma_dev->mmio_chan_hw_all
+			+ offset);
 
 	swdma_dev->swdma_chans[i] = swdma_chan;
 	swdma_chan->mmio_chan_fw = chan_fw;
@@ -1314,7 +1316,7 @@ struct switchtec_sysfs_entry {
 static ssize_t burst_scale_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 perf_cfg = 0;
 
 	rcu_read_lock();
@@ -1336,7 +1338,7 @@ static ssize_t burst_scale_store(struct dma_chan *chan, const char *page,
 {
 	int burst_scale;
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 perf_cfg;
 	ssize_t ret = count;
 
@@ -1372,7 +1374,7 @@ static struct switchtec_sysfs_entry burst_scale_attr = __ATTR_RW(burst_scale);
 static ssize_t burst_size_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 burst_size = 0;
 
 	rcu_read_lock();
@@ -1394,7 +1396,7 @@ static ssize_t burst_size_store(struct dma_chan *chan, const char *page,
 {
 	int burst_size;
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 perf_cfg;
 	ssize_t ret = count;
 
@@ -1433,7 +1435,7 @@ static struct switchtec_sysfs_entry burst_size_attr = __ATTR_RW(burst_size);
 static ssize_t arb_weight_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 weight = 0;
 
 	rcu_read_lock();
@@ -1455,7 +1457,7 @@ static ssize_t arb_weight_store(struct dma_chan *chan, const char *page,
 {
 	int weight;
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 perf_cfg;
 	ssize_t ret = count;
 
@@ -1491,7 +1493,7 @@ static struct switchtec_sysfs_entry arb_weight_attr = __ATTR_RW(arb_weight);
 static ssize_t interval_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 interval = 0;
 
 	rcu_read_lock();
@@ -1513,7 +1515,7 @@ static ssize_t interval_store(struct dma_chan *chan, const char *page,
 {
 	int interval;
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 perf_cfg;
 	ssize_t ret = count;
 
@@ -1551,7 +1553,7 @@ static struct switchtec_sysfs_entry interval_attr = __ATTR_RW(interval);
 static ssize_t mrrs_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 mrrs = 0;
 
 	rcu_read_lock();
@@ -1572,7 +1574,7 @@ static ssize_t mrrs_store(struct dma_chan *chan, const char *page, size_t count)
 {
 	int mrrs;
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 perf_cfg;
 	ssize_t ret = count;
 
@@ -1609,7 +1611,7 @@ static struct switchtec_sysfs_entry mrrs_attr = __ATTR_RW(mrrs);
 static ssize_t se_count_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u64 count = 0;
 
 	rcu_read_lock();
@@ -1631,7 +1633,7 @@ static struct switchtec_sysfs_entry se_count_attr = __ATTR_RO(se_count);
 static ssize_t byte_count_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u64 count = 0;
 
 	count = le32_to_cpu(readl(&chan_fw->perf_byte_cnt_hi));
@@ -1646,7 +1648,7 @@ static struct switchtec_sysfs_entry byte_count_attr = __ATTR_RO(byte_count);
 static ssize_t se_pending_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u16 count = 0;
 
 	rcu_read_lock();
@@ -1666,7 +1668,7 @@ static struct switchtec_sysfs_entry se_pending_attr = __ATTR_RO(se_pending);
 static ssize_t se_buf_empty_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u16 count = 0;
 
 	rcu_read_lock();
@@ -1686,7 +1688,7 @@ static struct switchtec_sysfs_entry se_buf_empty_attr = __ATTR_RO(se_buf_empty);
 static ssize_t chan_idle_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 ratio = 0;
 
 	rcu_read_lock();
@@ -1706,7 +1708,7 @@ static struct switchtec_sysfs_entry chan_idle_attr = __ATTR_RO(chan_idle);
 static ssize_t latency_max_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 lat = 0;
 
 	lat = le32_to_cpu(readl(&chan_fw->perf_lat_max));
@@ -1719,7 +1721,7 @@ static struct switchtec_sysfs_entry latency_max_attr = __ATTR_RO(latency_max);
 static ssize_t latency_min_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 lat = 0;
 
 	rcu_read_lock();
@@ -1739,7 +1741,7 @@ static struct switchtec_sysfs_entry latency_min_attr = __ATTR_RO(latency_min);
 static ssize_t latency_last_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 lat = 0;
 
 	rcu_read_lock();
@@ -1759,7 +1761,7 @@ static struct switchtec_sysfs_entry latency_last_attr = __ATTR_RO(latency_last);
 static ssize_t latency_selector_show(struct dma_chan *chan, char *page)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	u32 lat = 0;
 
 	rcu_read_lock();
@@ -1814,7 +1816,7 @@ static ssize_t latency_selector_store(struct dma_chan *chan, const char *page,
 {
 	int lat_type;
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
-	struct chan_fw_regs *chan_fw = swdma_chan->mmio_chan_fw;
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
 	ssize_t ret = count;
 
 	rcu_read_lock();
