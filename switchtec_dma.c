@@ -432,14 +432,14 @@ struct switchtec_dma_desc {
 };
 
 #define HALT_RETRY 100
-static int halt_channel(struct switchtec_dma_chan *swdma_chan)
+static int halt_channel(struct switchtec_dma_chan *swdma_chan, bool sync)
 {
 	u8 ctrl;
 	u32 status;
 	struct chan_hw_regs __iomem *chan_hw = swdma_chan->mmio_chan_hw;
 	int retry = HALT_RETRY;
 	struct pci_dev *pdev;
-	int ret;
+	int ret = 0;
 
 	rcu_read_lock();
 	pdev = rcu_dereference(swdma_chan->swdma_dev->pdev);
@@ -448,29 +448,33 @@ static int halt_channel(struct switchtec_dma_chan *swdma_chan)
 		goto unlock_and_exit;
 	}
 
-	ctrl = readb(&chan_hw->ctrl);
+	status = readl(&chan_hw->status);
+	if (status & SWITCHTEC_CHAN_STS_HALTED)
+		goto unlock_and_exit;
 
-	ctrl |= SWITCHTEC_CHAN_CTRL_HALT | SWITCHTEC_CHAN_CTRL_RESET;
+	ctrl = SWITCHTEC_CHAN_CTRL_HALT;
 	writeb(ctrl, &chan_hw->ctrl);
 
-	do {
-		status = readl(&chan_hw->status);
+	if (sync) {
+		do {
+			status = readl(&chan_hw->status);
+			printk("status is %x\n", status);
 
-		if (status & SWITCHTEC_CHAN_STS_HALTED) {
-			ret = 0;
-			goto unlock_and_exit;
-		} else {
-			msleep(1);
-		}
-	} while (retry--);
+			if (status & SWITCHTEC_CHAN_STS_HALTED)
+				goto unlock_and_exit;
+			else
+				msleep(1);
+		} while (retry--);
 
-	ret = -EIO;
+		ret = -EIO;
+	}
 
 unlock_and_exit:
 	rcu_read_unlock();
 	return ret;
 }
 
+#if 0
 static int unhalt_channel(struct switchtec_dma_chan *swdma_chan)
 {
 	u8 ctrl;
@@ -508,8 +512,9 @@ unlock_and_exit:
 	rcu_read_unlock();
 	return ret;
 }
+#endif
 
-static int reset_channel(struct switchtec_dma_chan *swdma_chan)
+static int unhalt_and_reset_channel(struct switchtec_dma_chan *swdma_chan)
 {
 	u8 ctrl;
 	struct chan_hw_regs __iomem *chan_hw = swdma_chan->mmio_chan_hw;
@@ -535,6 +540,7 @@ static int reset_channel(struct switchtec_dma_chan *swdma_chan)
 	return 0;
 }
 
+#if 0
 static int enable_channel(struct switchtec_dma_chan *swdma_chan)
 {
 	u32 valid_en_se;
@@ -556,6 +562,7 @@ static int enable_channel(struct switchtec_dma_chan *swdma_chan)
 	rcu_read_unlock();
 	return 0;
 }
+#endif
 
 static int disable_channel(struct switchtec_dma_chan *swdma_chan)
 {
@@ -712,7 +719,9 @@ static void switchtec_dma_abort_desc(struct switchtec_dma_chan *swdma_chan)
 
 static void __switchtec_dma_chan_stop(struct switchtec_dma_chan *swdma_chan)
 {
-	writeb(SWITCHTEC_CHAN_CTRL_HALT, &swdma_chan->mmio_chan_hw->ctrl);
+	int rc = halt_channel(swdma_chan, true);
+	if (rc)
+		dev_err(to_chan_dev(swdma_chan), "stop failed\n");
 
 	writel(0, &swdma_chan->mmio_chan_fw->sq_base_lo);
 	writel(0, &swdma_chan->mmio_chan_fw->sq_base_hi);
@@ -1077,6 +1086,57 @@ err_unlock_free_and_exit:
 	return -ENOMEM;
 }
 
+static int config_channel(struct switchtec_dma_chan *swdma_chan)
+{
+	struct chan_fw_regs __iomem *chan_fw = swdma_chan->mmio_chan_fw;
+	u32 perf_cfg;
+	u32 valid_en_se;
+	int se_buf_len;
+	u32 thresh;
+	int rc;
+
+	/* halt channel first */
+	rc = halt_channel(swdma_chan, false);
+	if (rc) {
+		dev_err(to_chan_dev(swdma_chan), "Channel %d: halt failed\n",
+			swdma_chan->index);
+		return rc;
+	}
+
+	perf_cfg = readl(&chan_fw->perf_cfg);
+
+	/* init perf tuner */
+	perf_cfg = PERF_BURST_SCALE << PERF_BURST_SCALE_SHIFT;
+	perf_cfg |= PERF_MRRS << PERF_MRRS_SHIFT;
+	perf_cfg |= PERF_INTERVAL << PERF_INTERVAL_SHIFT;
+	perf_cfg |= PERF_BURST_SIZE << PERF_BURST_SIZE_SHIFT;
+	perf_cfg |= PERF_ARB_WEIGHT << PERF_ARB_WEIGHT_SHIFT;
+
+	writel(perf_cfg, &chan_fw->perf_cfg);
+
+	valid_en_se = readl(&chan_fw->valid_en_se);
+
+	dev_dbg(to_chan_dev(swdma_chan), "Channel %d: SE buf base 0x%x\n",
+		swdma_chan->index,
+		(valid_en_se >> SE_BUF_BASE_SHIFT) & SE_BUF_BASE_MASK);
+
+	se_buf_len = (valid_en_se >> SE_BUF_LEN_SHIFT) & SE_BUF_LEN_MASK;
+	dev_dbg(to_chan_dev(swdma_chan), "Channel %d: SE buf cnt 0x%x\n",
+		swdma_chan->index, se_buf_len);
+
+	thresh = se_buf_len / 2;
+	valid_en_se |= (thresh & SE_THRESH_MASK) << SE_THRESH_SHIFT;
+	writel(valid_en_se , &chan_fw->valid_en_se);
+
+	/* enable channel */
+	valid_en_se |= SWITCHTEC_CHAN_ENABLE;
+	writel(valid_en_se , &chan_fw->valid_en_se);
+
+	unhalt_and_reset_channel(swdma_chan);
+
+	return 0;
+}
+
 static int switchtec_dma_alloc_chan_resources(struct dma_chan *chan)
 {
 	struct switchtec_dma_chan *swdma_chan = to_switchtec_dma_chan(chan);
@@ -1096,9 +1156,12 @@ static int switchtec_dma_alloc_chan_resources(struct dma_chan *chan)
 		return rc;
 	}
 
+#if 0
 	enable_channel(swdma_chan);
 	reset_channel(swdma_chan);
 	unhalt_channel(swdma_chan);
+#endif
+	config_channel(swdma_chan);
 
 	swdma_chan->ring_active = true;
 	swdma_chan->cid = 0;
@@ -1166,10 +1229,10 @@ static int switchtec_dma_chan_init(struct switchtec_dma_dev *swdma_dev, int i)
 	struct switchtec_dma_chan *swdma_chan;
 	struct chan_fw_regs __iomem *chan_fw;
 	struct chan_hw_regs __iomem *chan_hw;
-	u32 perf_cfg = 0;
-	u32 valid_en_se;
-	u32 thresh;
-	int se_buf_len;
+//	u32 perf_cfg = 0;
+//	u32 valid_en_se;
+//	u32 thresh;
+//	int se_buf_len;
 	int irq;
 	int rc = 0;
 	size_t offset;
@@ -1204,9 +1267,9 @@ static int switchtec_dma_chan_init(struct switchtec_dma_dev *swdma_dev, int i)
 	swdma_chan->mmio_chan_fw = chan_fw;
 	swdma_chan->mmio_chan_hw = chan_hw;
 	swdma_chan->swdma_dev = swdma_dev;
-
+#if 0
 	/* halt channel first */
-	rc = halt_channel(swdma_chan);
+	rc = halt_channel(swdma_chan, false);
 	if (rc) {
 		dev_err(dev, "Channel %d: halt failed\n", i);
 		goto err_unlock_and_exit;
@@ -1234,7 +1297,7 @@ static int switchtec_dma_chan_init(struct switchtec_dma_dev *swdma_dev, int i)
 	thresh = se_buf_len / 2;
 	valid_en_se |= (thresh & SE_THRESH_MASK) << SE_THRESH_SHIFT;
 	writel(valid_en_se , &chan_fw->valid_en_se);
-
+#endif
 	/* request irqs */
 	irq = readl(&chan_fw->int_vec);
 	dev_dbg(dev, "Channel %d: irq vec 0x%x\n", i, irq);
